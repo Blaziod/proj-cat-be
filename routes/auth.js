@@ -1,16 +1,16 @@
-import { Router } from 'express'
+const { Router } = require('express')
 
 const router = Router()
 
 router.use('/login/student', studentLoginHandler)
 router.use('/register/student', registerStudentHandler)
 
-export default router
+module.exports = router
 
 // HANDLERS
-import { validate, validateStudentLoginForm, validateStudentRegistrationForm } from '../validator/index.js'
-import { encryptPass, validatePass, Response } from '../utils/index.js'
-import { exists, readOne, save } from '../db/index.js'
+const { validate, validateStudentLoginForm, validateStudentRegistrationForm } = require('../lib/validator')
+const { encryptPass, validatePass, Response } = require('../lib/utils')
+const { exists, readOne, save } = require('../db')
 
 async function registerStudentHandler(req, res) {
 	const [isValid, errors] = validate(validateStudentRegistrationForm, req.body)

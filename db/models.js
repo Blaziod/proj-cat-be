@@ -1,4 +1,4 @@
-import { Schema, model } from 'mongoose'
+const { Schema, model } = require('mongoose')
 
 const studentSchema = new Schema(
 	{
@@ -15,10 +15,10 @@ const studentSchema = new Schema(
 			transform: function (doc, ret) {
 				delete ret._id
 				delete ret.__v
-                delete ret.password
+				delete ret.password
 			}
 		}
 	}
 )
 
-export const StudentModel = model('Student', studentSchema)
+module.exports = { StudentModel: model('Student', studentSchema) }
