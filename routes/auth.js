@@ -2,8 +2,8 @@ const { Router } = require('express')
 
 const router = Router()
 
-router.use('/login/student', studentLoginHandler)
-router.use('/register/student', registerStudentHandler)
+router.post('/login/student', studentLoginHandler)
+router.post('/register/student', registerStudentHandler)
 
 module.exports = router
 
