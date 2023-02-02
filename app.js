@@ -1,8 +1,9 @@
-const createError = require('http-errors')
 const express = require('express')
+const createError = require('http-errors')
 const path = require('path')
 const cookieParser = require('cookie-parser')
 const env = require('dotenv')
+const cors = require('cors')
 
 const indexRouter = require('./routes/index')
 const authRouter = require('./routes/auth.js')
@@ -21,6 +22,7 @@ const app = express()
 app.set('views', path.join(__dirname, 'views'))
 app.set('view engine', 'jade')
 
+app.use(cors()) // enable all cors request
 app.use(loggerMiddleware())
 app.use(express.json())
 app.use(express.urlencoded({ extended: false }))
