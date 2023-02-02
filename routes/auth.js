@@ -24,10 +24,9 @@ async function registerStudentHandler(req, res) {
 		return res.status(400).json(Response.error('Matric number already registered', errors))
 
 	// save the student
-	save(STUDENT, studentInfo, err => {
+	save(STUDENT, studentInfo, (err, doc) => {
 		if (err) return res.status(500).json(Response.error('Something went wrong backstage!'))
-
-		return res.status(200).json(Response.success('Student registered!', studentInfo))
+		return res.status(200).json(Response.success('Student registered!', doc))
 	})
 }
 
