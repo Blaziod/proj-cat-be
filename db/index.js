@@ -25,25 +25,29 @@ global.approvedTopics = []
 
 async function setupAndStart(cb) {
 	connect(err => {
-		if (err) return console.log(err)
+		if (err) return logger.error(err.message)
 		logger.info('DB connected!')
 	})
 }
-
+// setup a job that periodically gets all the approved topics from the database and stores as cache
+// keeping only the title of the topics as opposed to the entire topic object to save memory.
 var __jobId = null
 function updateGlobalApprovedTopicsCache() {
 	readApprovedTopics()
 		.then(topics => {
-			global.approvedTopics = topics
+			global.approvedTopics = topics.map(topic => topic.title)
 		})
 		.catch(err => {
 			logger.warn('could not read approved topics - ' + err.message)
 		})
 		.finally(() => {
+            // queue the function to run after 3 seconds
 			__jobId = setTimeout(updateGlobalApprovedTopicsCache, 3000)
 		})
 }
 
+// stop reading the approved Topics
+// but also maintain whatever we already have in the cache
 function stopUpdateGlobalApprovedTopicsCache() {
 	if (__jobId) clearTimeout(__jobId)
 }
@@ -70,7 +74,6 @@ async function exists(modelName, data) {
 	const Model = mapNameToModel(modelName)
 
 	const res = await Model.exists(data)
-	console.log(res)
 	return res !== null
 }
 
