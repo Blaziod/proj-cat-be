@@ -16,15 +16,12 @@ module.exports = router
 
 function verifyTopic(req, res) {
 	const queryObj = req.query
-	console.log(queryObj, req.query)
 	const [isValid, errors] = validate(validateTopicReq, queryObj)
 	if (!isValid) return res.status(400).json(Response.error('Invalid request!', errors))
 
 	// verify this topic against each of the cached verified topics
 	const { topic } = queryObj
 	const cachedTopics = global.approvedTopics
-
-    console.log(cachedTopics)
 
 	const similaritiesPromises = cachedTopics.map(approvedTopic => {
 		return axios('https://api.dandelion.eu/datatxt/sim/v1', {
@@ -39,7 +36,6 @@ function verifyTopic(req, res) {
 
 	Promise.allSettled(similaritiesPromises)
 		.then(results => {
-            console.log(results)
 			// check if any of the approved topics have a similarity score
 			// of over 90% and report that this topic is invalid
 			const matchesAtLeastOne = results.some(result => {
@@ -68,6 +64,8 @@ function addTopic(req, res) {
 
 	readOne(STUDENT, { matricNo })
 		.then(student => {
+			if (student === null) return res.status(400).json(Response.error('No such student with that matric number!'))
+
 			const restructuredData = topics.map(topic => ({ proposedBy: student._id, title: topic }))
 
 			insertMany(TOPIC, restructuredData)
