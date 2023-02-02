@@ -6,6 +6,7 @@ const env = require('dotenv')
 
 const indexRouter = require('./routes/index')
 const authRouter = require('./routes/auth.js')
+const topicRouter = require('./routes/topic.js')
 const { loggerMiddleware, logger } = require('./lib/utils/logger')
 const db = require('./db')
 
@@ -28,6 +29,7 @@ app.use(express.static(path.join(__dirname, 'public')))
 
 app.use('/', indexRouter)
 app.use('/api/auth/', authRouter)
+app.use('/api/topic/', topicRouter)
 
 // catch 404 and forward to error handler
 app.use(function (req, res, next) {
