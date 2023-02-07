@@ -1,8 +1,8 @@
 const { Router } = require('express')
 const qs = require('querystring')
-const { validate, validateTopicReq, validateAddTopic } = require('../lib/validator')
+const { validate, validateTopicReq, validateAddTopic, validateApproveTopicRequest } = require('../lib/validator')
 const { Response } = require('../lib/utils')
-const { readOne, insertMany } = require('../db')
+const { readOne, insertMany, exists, save } = require('../db')
 const { STUDENT, TOPIC } = require('../lib/utils/constants')
 const { logger } = require('../lib/utils/logger')
 const { default: axios } = require('axios')
@@ -10,7 +10,9 @@ const { default: axios } = require('axios')
 const router = Router()
 
 router.get('/verify', verifyTopic)
+router.post('/approve', approveTopic)
 router.post('/add', addTopic)
+router.get('/unapproved', readUnapprovedTopics)
 
 module.exports = router
 
@@ -64,7 +66,8 @@ function addTopic(req, res) {
 
 	readOne(STUDENT, { matricNo })
 		.then(student => {
-			if (student === null) return res.status(400).json(Response.error('No such student with that matric number!'))
+			if (student === null)
+				return res.status(400).json(Response.error('No such student with that matric number!'))
 
 			const restructuredData = topics.map(topic => ({ proposedBy: student._id, title: topic }))
 
@@ -81,6 +84,37 @@ function addTopic(req, res) {
 		})
 		.catch(err => {
 			logger.error(`Failed to readStudent with matricNo: ${matricNo} - failed with message - ${err.message}`)
+			res.status(500).json(Response.error('Something went wrong!'))
+		})
+}
+
+function readUnapprovedTopics(req, res) {
+	readMany(TOPIC, { approved: false })
+		.then(topics => {
+			res.status(200).json(Response.success('Done!', topics))
+		})
+		.catch(err => {
+			logger.error(`Failed to read unapproved topics - failed with message - ${err.message}`)
+			res.status(500).json(Response.error('Something went wrong!'))
+		})
+}
+
+async function approveTopic(req, res) {
+	const [isValid, errors] = validate(validateApproveTopicRequest, req.body)
+	if (!isValid) return res.status(400).json(Response.error('Invalid request!', errors))
+
+	const { id } = { ...req.body }
+
+	const topicExists = await exists(TOPIC, { id })
+
+	if (!topicExists) return res.status(400).json(Response.error('Could not find that topic to approve!'))
+
+	update({ id }, { approved: true })
+		.then(() => {
+			res.status(200).json(Response.success('Approved!'))
+		})
+		.catch(() => {
+			logger.error(`Failed to approve topic - failed with message - ${err.message}`)
 			res.status(500).json(Response.error('Something went wrong!'))
 		})
 }

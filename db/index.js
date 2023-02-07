@@ -1,6 +1,6 @@
-const { STUDENT, TOPIC } = require('../lib/utils/constants')
+const { STUDENT, TOPIC, LECTURER } = require('../lib/utils/constants')
 const { logger } = require('../lib/utils/logger')
-const { StudentModel, TopicModel } = require('./models.js')
+const { StudentModel, TopicModel, LecturerModel } = require('./models.js')
 
 // ======= DB SETUP
 
@@ -41,7 +41,7 @@ function updateGlobalApprovedTopicsCache() {
 			logger.warn('could not read approved topics - ' + err.message)
 		})
 		.finally(() => {
-            // queue the function to run after 3 seconds
+			// queue the function to run after 3 seconds
 			__jobId = setTimeout(updateGlobalApprovedTopicsCache, 3000)
 		})
 }
@@ -59,6 +59,7 @@ function stopUpdateGlobalApprovedTopicsCache() {
 const mapNameToModel = name =>
 	({
 		[STUDENT]: StudentModel,
+		[LECTURER]: LecturerModel,
 		[TOPIC]: TopicModel
 	}[name.toLowerCase()])
 
@@ -91,7 +92,17 @@ async function insertMany(modelName, objs) {
 }
 
 async function readApprovedTopics() {
-	return await TopicModel.find({ approved: true })
+	return await TopicModel.find({ status: 'APPROVED' })
+}
+
+async function readMany(modelName, query) {
+	const Model = mapNameToModel(modelName)
+	return Model.find(query).exec()
+}
+
+async function update(modelName, filter, update) {
+	const Model = mapNameToModel(modelName)
+	return Model.updateOne(filter, update)
 }
 
 module.exports = {
@@ -100,5 +111,7 @@ module.exports = {
 	exists,
 	readOne,
 	insertMany,
-	readApprovedTopics
+	readApprovedTopics,
+	readMany,
+	update
 }
