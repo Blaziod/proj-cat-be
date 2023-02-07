@@ -90,7 +90,7 @@ async function lecturerLoginHandler(req, res) {
 
 	const loginInfo = req.body
 
-	const lecturer = await readOne(STUDENT, { email: loginInfo.email })
+	const lecturer = await readOne(LECTURER, { email: loginInfo.email })
 
 	if (lecturer === null) return res.status(400).json(Response.error('No account found for ' + loginInfo.email))
 
