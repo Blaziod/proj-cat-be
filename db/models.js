@@ -1,5 +1,5 @@
 const { Schema, model, SchemaTypes } = require('mongoose')
-const { STUDENT, TOPIC, LECTURER } = require('../lib/utils/constants')
+const { STUDENT, TOPIC, LECTURER, PROJECT } = require('../lib/utils/constants')
 
 const studentSchema = new Schema(
 	{
@@ -42,10 +42,11 @@ const lecturerSchema = new Schema(
 	}
 )
 
-const topicSchema = new Schema(
+const projectSchema = new Schema(
 	{
-		title: String,
-		proposedBy: { type: SchemaTypes.ObjectId, ref: STUDENT },
+		ownerId: { type: SchemaTypes.ObjectId, ref: STUDENT, required: true },
+		approvedBy: { type: SchemaTypes.ObjectId, ref: LECTURER },
+		approvedDate: { type: SchemaTypes.Date, default: new Date() },
 		status: { type: String, default: 'PROPOSED' } // valid states are PROPOSED | APPROVED | REJECTED
 	},
 	{
@@ -59,8 +60,33 @@ const topicSchema = new Schema(
 	}
 )
 
+const topicSchema = new Schema(
+	{
+		title: String,
+		projectId: { type: SchemaTypes.ObjectId, ref: PROJECT },
+		status: { type: String, default: 'PROPOSED' } // valid states are PROPOSED | APPROVED | REJECTED
+	},
+	{
+		toJSON: {
+			transform: function (doc, ret) {
+				delete ret.__v
+				ret.id = ret._id
+				delete ret._id
+			}
+		}
+	}
+)
+
+function createModelWithVirtualId(modelName, schema) {
+	schema.virtual('id').get(function () {
+		return this._id
+	})
+	return model(modelName, schema)
+}
+
 module.exports = {
-	StudentModel: model(STUDENT, studentSchema),
-	LecturerModel: model(LECTURER, lecturerSchema),
-	TopicModel: model(TOPIC, topicSchema)
+	StudentModel: createModelWithVirtualId(STUDENT, studentSchema),
+	LecturerModel: createModelWithVirtualId(LECTURER, lecturerSchema),
+	ProjectModel: createModelWithVirtualId(PROJECT, projectSchema),
+	TopicModel: createModelWithVirtualId(TOPIC, topicSchema)
 }

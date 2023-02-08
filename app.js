@@ -7,7 +7,7 @@ const cors = require('cors')
 
 const indexRouter = require('./routes/index')
 const authRouter = require('./routes/auth.js')
-const topicRouter = require('./routes/topic.js')
+const topicRouter = require('./routes/project.js')
 const { loggerMiddleware, logger } = require('./lib/utils/logger')
 const db = require('./db')
 

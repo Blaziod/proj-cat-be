@@ -1,6 +1,6 @@
-const { STUDENT, TOPIC, LECTURER } = require('../lib/utils/constants')
+const { STUDENT, TOPIC, LECTURER, PROJECT } = require('../lib/utils/constants')
 const { logger } = require('../lib/utils/logger')
-const { StudentModel, TopicModel, LecturerModel } = require('./models.js')
+const { StudentModel, TopicModel, LecturerModel, ProjectModel } = require('./models.js')
 
 // ======= DB SETUP
 
@@ -60,6 +60,7 @@ const mapNameToModel = name =>
 	({
 		[STUDENT]: StudentModel,
 		[LECTURER]: LecturerModel,
+		[PROJECT]: ProjectModel,
 		[TOPIC]: TopicModel
 	}[name.toLowerCase()])
 
@@ -68,7 +69,7 @@ async function save(modelName, data, cb) {
 	const Model = mapNameToModel(modelName)
 
 	if (cb) new Model(data).save(cb)
-	else await new Model(data).save()
+	else return await new Model(data).save()
 }
 
 async function exists(modelName, data) {

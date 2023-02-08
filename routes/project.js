@@ -1,9 +1,8 @@
 const { Router } = require('express')
-const qs = require('querystring')
 const { validate, validateTopicReq, validateAddTopic, validateApproveTopicRequest } = require('../lib/validator')
 const { Response } = require('../lib/utils')
-const { readOne, insertMany, exists, save } = require('../db')
-const { STUDENT, TOPIC } = require('../lib/utils/constants')
+const { readOne, insertMany, exists, save, readMany } = require('../db')
+const { STUDENT, TOPIC, PROJECT } = require('../lib/utils/constants')
 const { logger } = require('../lib/utils/logger')
 const { default: axios } = require('axios')
 
@@ -25,8 +24,13 @@ function verifyTopic(req, res) {
 	const { topic } = queryObj
 	const cachedTopics = global.approvedTopics
 
-	const similaritiesPromises = cachedTopics.map(approvedTopic => {
-		return axios('https://api.dandelion.eu/datatxt/sim/v1', {
+	if (cachedTopics.includes(topic))
+		return res
+			.status(200)
+			.json(Response.success('This topic or a similar one already exists!', { isDuplicate: true }))
+
+	const similaritiesPromises = cachedTopics.map(approvedTopic =>
+		axios('https://api.dandelion.eu/datatxt/sim/v1', {
 			params: {
 				token: process.env.AI_TOKEN,
 				text1: approvedTopic.title,
@@ -34,7 +38,7 @@ function verifyTopic(req, res) {
 				lang: 'en'
 			}
 		})
-	})
+	)
 
 	Promise.allSettled(similaritiesPromises)
 		.then(results => {
@@ -58,6 +62,8 @@ function verifyTopic(req, res) {
 		})
 }
 
+// create a new project for a student and add topics to that project
+// if project is already associated with student, add the topic to the project.
 function addTopic(req, res) {
 	const [isValid, errors] = validate(validateAddTopic, req.body)
 	if (!isValid) return res.status(400).json(Response.error('Invalid request!', errors))
@@ -69,18 +75,40 @@ function addTopic(req, res) {
 			if (student === null)
 				return res.status(400).json(Response.error('No such student with that matric number!'))
 
-			const restructuredData = topics.map(topic => ({ proposedBy: student._id, title: topic }))
+			// read a project for this student
+			readOne(PROJECT, { ownerId: student.id })
+				.then(async project => {
+					if (project === null) {
+						// project has not yet been created for this student
+						// create a new project
+						return await save(PROJECT, { ownerId: student.id })
+					}
+					return project
+				})
+				.then(async project => {
+					// if the project already contains 3 'PROPOSED' topics, refuse to add it.
+					const associatedTopic = await readMany(TOPIC, { projectId: project.id, status: 'PROPOSED' })
 
-			insertMany(TOPIC, restructuredData)
-				.then(topics => {
-					res.status(200).json(Response.success('Topics added!', topics))
+					console.log(associatedTopic)
+
+					if (associatedTopic.length >= 3)
+						return res.status(400).json(Response.error('3 Topics have already been proposed!'))
+
+					const restructuredData = topics.map(topic => ({ projectId: project.id, title: topic }))
+
+					// associate the topics with the project
+					insertMany(TOPIC, restructuredData)
+						.then(topics => {
+							res.status(200).json(Response.success('Topics added!', topics))
+						})
+						.catch(err => {
+							logger.error(
+								`failed to write topics for student with: ${matricNo} - failed with message - ${err.message}.\n topics - ${topics}`
+							)
+							res.status(500).json(Response.error('Something went wrong!'))
+						})
 				})
-				.catch(err => {
-					logger.error(
-						`failed to write topics for student with: ${matricNo} - failed with message - ${err.message}.\n topics - ${topics}`
-					)
-					res.status(500).json(Response.error('Something went wrong!'))
-				})
+				.catch()
 		})
 		.catch(err => {
 			logger.error(`Failed to readStudent with matricNo: ${matricNo} - failed with message - ${err.message}`)

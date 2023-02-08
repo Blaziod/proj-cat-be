@@ -28,7 +28,7 @@ async function registerStudentHandler(req, res) {
 	const studentInfo = req.body
 	studentInfo.password = await encryptPass(studentInfo.password)
 
-	if (studentInfo.matricNo.endsWith('/test')) {
+	if (studentInfo.matricNo.endsWith('/00000')) {
 		delete studentInfo.password
 		return res.status(200).json(Response.success('Student registered!', studentInfo))
 	}
