@@ -89,8 +89,6 @@ function addTopic(req, res) {
 					// if the project already contains 3 'PROPOSED' topics, refuse to add it.
 					const associatedTopic = await readMany(TOPIC, { projectId: project.id, status: 'PROPOSED' })
 
-					console.log(associatedTopic)
-
 					if (associatedTopic.length >= 3)
 						return res.status(400).json(Response.error('3 Topics have already been proposed!'))
 
