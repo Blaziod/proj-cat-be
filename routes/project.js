@@ -6,7 +6,7 @@ const {
 	validateGetProjectRequest
 } = require('../lib/validator')
 const { Response } = require('../lib/utils')
-const { readOne, insertMany, exists, save, readMany, updateMany } = require('../data')
+const { readOne, insertMany, exists, save, readMany, updateMany, update } = require('../data')
 const { STUDENT, TOPIC, PROJECT, PROPOSED, LECTURER, APPROVED } = require('../lib/utils/constants')
 const { logger } = require('../lib/utils/logger')
 
@@ -115,19 +115,24 @@ async function approveProject(req, res) {
 
 	const { topicId, lecturerId } = { ...req.body }
 
-	await exists(LECTURER, { id: lecturerId })
+	await exists(LECTURER, { _id: lecturerId })
 		.then(lecturerExists => {
 			if (!lecturerExists) return res.status(400).json(Response.error('Unknown LecturerId!'))
-			return readOne(TOPIC, { id: topicId })
+			return readOne(TOPIC, { _id: topicId })
 		})
 		.then(topic => {
 			if (!topic) return res.status(400).json(Response.error('Could not find that topic to approve!'))
 
-			update(PROJECT, { id: topic.projectId }, { approvedTopic: topic.id, approvedBy: lecturerId })
+			// refuse to approve a topic if a topic was already approved
+			try {
+				const project = readOne(PROJECT, { _id: topic.projectId })
+			} catch (error) {}
+
+			update(PROJECT, { _id: topic.projectId }, { approvedTopic: topic.id, approvedBy: lecturerId })
 				.then(() => {
 					res.status(200).json(Response.success('Approved!'))
 				})
-				.catch(() => {
+				.catch(err => {
 					logger.error(`Failed to approve topic - failed with message - ${err.message}`)
 					res.status(500).json(Response.fatal())
 				})
@@ -145,10 +150,10 @@ async function rejectProject(req, res) {
 
 	const { topicId, projectId } = { ...req.body }
 
-	await exists(LECTURER, { id: lecturerId })
+	await exists(LECTURER, { _id: lecturerId })
 		.then(lecturerExists => {
 			if (!lecturerExists) return res.status(400).json(Response.error('Unknown LecturerId!'))
-			return readOne(PROJECT, { id: projectId })
+			return readOne(PROJECT, { _id: projectId })
 		})
 		.then(project => {
 			if (!project) return res.status(400).json(Response.error('Could not find that project to review!'))
