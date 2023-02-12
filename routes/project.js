@@ -135,7 +135,7 @@ async function approveProject(req, res) {
 			}
 
 			// mark all the topics as reviewed
-            await updateMany(TOPIC, { projectId: topic.projectId, reviewed: false }, { reviewed: true })
+			await updateMany(TOPIC, { projectId: topic.projectId, reviewed: false }, { reviewed: true })
 
 			update(PROJECT, { _id: topic.projectId }, { approvedTopic: topic.id, approvedBy: lecturerId })
 				.then(() => {
@@ -165,7 +165,9 @@ async function rejectPendingTopics(req, res) {
 
 			// if a project has been approved
 			if (project.approvedTopic)
-				return res.status(400).json(Response.error('Cannot reject topics on a project that has an approved topic!'))
+				return res
+					.status(400)
+					.json(Response.error('Cannot reject topics on a project that has an approved topic!'))
 
 			updateMany(TOPIC, { projectId: project.id, reviewed: false }, { reviewed: true })
 				.then(() => {
@@ -190,21 +192,22 @@ function readPendingProjects(_req, res) {
 		.then(async projects => {
 			const projectIds = projects.map(p => p.id.toString())
 			// get the associated topics
-			return { projects, topics: await readMany(TOPIC, { projectId: { $in: projectIds } }) }
+			return { projects, topics: await readMany(TOPIC, { projectId: { $in: projectIds }, reviewed: false }) }
 		})
 		.then(data => {
 			// group topics by projects
 			const { projects, topics } = JSON.parse(JSON.stringify(data))
 			const projectMap = projects.reduce((acc, proj) => ({ ...acc, [proj.id]: { ...proj, topics: [] } }), {})
 
-			let grouped = topics.reduce((groupedSoFar, topic) => {
+			const grouped = topics.reduce((groupedSoFar, topic) => {
 				const associatedProject = topic.projectId
 				if (groupedSoFar[associatedProject])
 					groupedSoFar[associatedProject].topics = [...groupedSoFar[associatedProject].topics, topic]
 				return groupedSoFar
 			}, projectMap)
 
-			res.status(200).json(Response.success('Done!', Object.values(grouped)))
+			const filteredGrouped = Object.values(grouped).filter(project => project.topics.length > 0)
+			res.status(200).json(Response.success('Done!', filteredGrouped))
 		})
 		.catch(err => {
 			logger.error(`Failed to read unapproved topics - failed with message - ${err.message}`)
