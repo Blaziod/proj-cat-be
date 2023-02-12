@@ -18,7 +18,7 @@ const {
 	validateLecturerLoginForm
 } = require('../lib/validator')
 const { encryptPass, validatePass, Response } = require('../lib/utils')
-const { exists, readOne, save } = require('../db')
+const { exists, readOne, save } = require('../data')
 const { STUDENT, LECTURER } = require('../lib/utils/constants')
 
 async function registerStudentHandler(req, res) {
@@ -38,7 +38,7 @@ async function registerStudentHandler(req, res) {
 
 	// save the student
 	save(STUDENT, studentInfo, (err, doc) => {
-		if (err) return res.status(500).json(Response.error('Something went wrong backstage!'))
+		if (err) return res.status(500).json(Response.fatal())
 		return res.status(200).json(Response.success('Student registered!', doc))
 	})
 }
@@ -61,7 +61,7 @@ async function registerLecturerHandler(req, res) {
 
 	// save the lecturer
 	save(LECTURER, lecturerInfo, (err, doc) => {
-		if (err) return res.status(500).json(Response.error('Something went wrong backstage!'))
+		if (err) return res.status(500).json(Response.fatal())
 		return res.status(200).json(Response.success('Account created!', doc))
 	})
 }

@@ -7,9 +7,11 @@ const cors = require('cors')
 
 const indexRouter = require('./routes/index')
 const authRouter = require('./routes/auth.js')
-const topicRouter = require('./routes/project.js')
+const projectRouter = require('./routes/project.js')
+const topicRouter = require('./routes/topic.js')
 const { loggerMiddleware, logger } = require('./lib/utils/logger')
-const db = require('./db')
+const db = require('./data')
+const { Response } = require('./lib/utils')
 
 // run configurations
 logger.info('Running Configurations...')
@@ -32,6 +34,7 @@ app.use(express.static(path.join(__dirname, 'public')))
 app.use('/', indexRouter)
 app.use('/api/auth/', authRouter)
 app.use('/api/topic/', topicRouter)
+app.use('/api/project/', projectRouter)
 
 // catch 404 and forward to error handler
 app.use(function (req, res, next) {
@@ -46,7 +49,11 @@ app.use(function (err, req, res, next) {
 
 	// render the error page
 	res.status(err.status || 500)
-	res.json({ ok: false, message: 'endpoint not found' })
+	if (err.status) res.json({ ok: false, message: 'endpoint not found' })
+	else {
+		logger.error(`Failed to read unapproved topics - failed with message - ${err.message}`)
+		res.json(Response.fatal())
+	}
 })
 
 module.exports = app

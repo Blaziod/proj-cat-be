@@ -34,8 +34,9 @@ async function setupAndStart(cb) {
 var __jobId = null
 function updateGlobalApprovedTopicsCache() {
 	readApprovedTopics()
-		.then(topics => {
-			global.approvedTopics = topics.map(topic => topic.title)
+		.then(approvedProjects => {
+			global.approvedTopics = approvedProjects.map(approvedProject => approvedProject.approvedTopic.title)
+			// console.log(approvedTopics)
 		})
 		.catch(err => {
 			logger.warn('could not read approved topics - ' + err.message)
@@ -56,13 +57,14 @@ function stopUpdateGlobalApprovedTopicsCache() {
 
 // =========== UTILS
 
-const mapNameToModel = name =>
-	({
-		[STUDENT]: StudentModel,
-		[LECTURER]: LecturerModel,
-		[PROJECT]: ProjectModel,
-		[TOPIC]: TopicModel
-	}[name.toLowerCase()])
+const modelMap = {
+	[STUDENT]: StudentModel,
+	[LECTURER]: LecturerModel,
+	[PROJECT]: ProjectModel,
+	[TOPIC]: TopicModel
+}
+
+const mapNameToModel = name => modelMap[name.toLowerCase()]
 
 // DB API
 async function save(modelName, data, cb) {
@@ -79,10 +81,17 @@ async function exists(modelName, data) {
 	return res !== null
 }
 
-async function readOne(modelName, query) {
+async function readOne(modelName, filter, config) {
 	const Model = mapNameToModel(modelName)
 
-	return await Model.findOne(query).exec()
+	let finalQuery = Model.findOne(filter)
+
+	//attach populate
+	if (config && config.populate && Array.isArray(config.populate)) {
+		config.populate.forEach(populateField => (finalQuery = finalQuery.populate(populateField)))
+	}
+
+	return await finalQuery.exec()
 }
 
 async function insertMany(modelName, objs) {
@@ -93,17 +102,40 @@ async function insertMany(modelName, objs) {
 }
 
 async function readApprovedTopics() {
-	return await TopicModel.find({ status: 'APPROVED' })
+	return await ProjectModel.find({ approvedTopic: { $ne: null } }).populate('approvedTopic')
 }
 
-async function readMany(modelName, query) {
+async function readMany(modelName, filter, config) {
 	const Model = mapNameToModel(modelName)
-	return Model.find(query).exec()
+
+	let finalQuery = Model.find(filter)
+
+	//attach populate
+	if (config && config.populate && Array.isArray(config.populate)) {
+		config.populate.forEach(populateField => (finalQuery = finalQuery.populate(populateField)))
+	}
+
+	return finalQuery.exec()
 }
 
 async function update(modelName, filter, update) {
 	const Model = mapNameToModel(modelName)
 	return Model.updateOne(filter, update)
+}
+
+async function updateMany(modelName, filter, update) {
+	const Model = mapNameToModel(modelName)
+	return Model.updateMany(filter, update)
+}
+
+async function cleanDB() {
+	const Models = Object.values(modelMap)
+	Models.forEach(Model => {
+		Model.deleteMany((err, count) => {
+			console.log('err', err)
+			console.log('count', count)
+		})
+	})
 }
 
 module.exports = {
@@ -114,5 +146,7 @@ module.exports = {
 	insertMany,
 	readApprovedTopics,
 	readMany,
-	update
+	update,
+	updateMany,
+	cleanDB
 }

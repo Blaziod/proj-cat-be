@@ -1,70 +1,31 @@
 const { Router } = require('express')
-const { validate, validateTopicReq, validateAddTopic, validateApproveTopicRequest } = require('../lib/validator')
+const {
+	validate,
+	validateAddTopic,
+	validateApproveTopicRequest,
+	validateGetProjectRequest
+} = require('../lib/validator')
 const { Response } = require('../lib/utils')
-const { readOne, insertMany, exists, save, readMany } = require('../db')
-const { STUDENT, TOPIC, PROJECT } = require('../lib/utils/constants')
+const { readOne, insertMany, exists, save, readMany, updateMany } = require('../data')
+const { STUDENT, TOPIC, PROJECT, PROPOSED, LECTURER, APPROVED } = require('../lib/utils/constants')
 const { logger } = require('../lib/utils/logger')
-const { default: axios } = require('axios')
 
 const router = Router()
 
-router.get('/verify', verifyTopic)
-router.post('/approve', approveTopic)
-router.post('/add', addTopic)
-router.get('/unapproved', readUnapprovedTopics)
+router.get('/proposal', readSingleProjectForStudent)
+// router.get('/proposal/all', readUnapprovedProjects)
+router.get('/proposal/pending', readPendingProjects)
+// router.get('/proposal/approved', readUnapprovedProjects)
+// router.get('/proposal/unapproved', readUnapprovedProjects)
+router.post('/proposal/add', addTopics)
+router.post('/proposal/approve', approveProject)
+router.post('/proposal/reject', rejectProject)
 
 module.exports = router
 
-function verifyTopic(req, res) {
-	const queryObj = req.query
-	const [isValid, errors] = validate(validateTopicReq, queryObj)
-	if (!isValid) return res.status(400).json(Response.error('Invalid request!', errors))
-
-	// verify this topic against each of the cached verified topics
-	const { topic } = queryObj
-	const cachedTopics = global.approvedTopics
-
-	if (cachedTopics.includes(topic))
-		return res
-			.status(200)
-			.json(Response.success('This topic or a similar one already exists!', { isDuplicate: true }))
-
-	const similaritiesPromises = cachedTopics.map(approvedTopic =>
-		axios('https://api.dandelion.eu/datatxt/sim/v1', {
-			params: {
-				token: process.env.AI_TOKEN,
-				text1: approvedTopic.title,
-				text2: topic,
-				lang: 'en'
-			}
-		})
-	)
-
-	Promise.allSettled(similaritiesPromises)
-		.then(results => {
-			// check if any of the approved topics have a similarity score
-			// of over 90% and report that this topic is invalid
-			const matchesAtLeastOne = results.some(result => {
-				if (result.status === 'rejected') return false
-				const similarityScore = result.value.data.similarity
-				return similarityScore >= 0.9
-			})
-
-			if (matchesAtLeastOne)
-				res.status(200).json(
-					Response.success('This topic or a similar one already exists!', { isDuplicate: true })
-				)
-			else res.status(200).json(Response.success('No matches found! All clear.', { isDuplicate: false }))
-		})
-		.catch(err => {
-			logger.error(`Failed while verifying topics - failed with message - ${err.message}`)
-			res.status(500).json(Response.error('Something went wrong!'))
-		})
-}
-
-// create a new project for a student and add topics to that project
-// if project is already associated with student, add the topic to the project.
-function addTopic(req, res) {
+// create a new project for a student and add topics to that project.
+// if a project is already associated with student, add the topics to the project.
+function addTopics(req, res) {
 	const [isValid, errors] = validate(validateAddTopic, req.body)
 	if (!isValid) return res.status(400).json(Response.error('Invalid request!', errors))
 
@@ -76,23 +37,51 @@ function addTopic(req, res) {
 				return res.status(400).json(Response.error('No such student with that matric number!'))
 
 			// read a project for this student
-			readOne(PROJECT, { ownerId: student.id })
+			readOne(PROJECT, { owner: student.id })
 				.then(async project => {
 					if (project === null) {
 						// project has not yet been created for this student
 						// create a new project
-						return await save(PROJECT, { ownerId: student.id })
+						return await save(PROJECT, { owner: student.id, created: new Date() })
 					}
 					return project
 				})
 				.then(async project => {
-					// if the project already contains 3 'PROPOSED' topics, refuse to add it.
-					const associatedTopic = await readMany(TOPIC, { projectId: project.id, status: 'PROPOSED' })
+					// if the project is already approved, refuse to add topics
+					if (project.approvedTopic)
+						return res.status(400).json(Response.error('A topic has already been approved!'))
 
-					if (associatedTopic.length >= 3)
+					const associatedTopics = await readMany(TOPIC, { projectId: project.id, reviewed: false })
+
+					// if the project already contains 3 unreviewed topics, refuse to add it.
+					if (associatedTopics.length >= 3)
 						return res.status(400).json(Response.error('3 Topics have already been proposed!'))
 
-					const restructuredData = topics.map(topic => ({ projectId: project.id, title: topic }))
+					// if adding the new topics makes the count more than 3, refuse to add it
+					if (associatedTopics.length + topics.length > 3)
+						return res
+							.status(400)
+							.json(
+								Response.error(
+									`You cannot have more than 3 proposed topics at a time. You already have ${associatedTopics.length} proposed topics!`
+								)
+							)
+
+					// if one of the topics has previously been proposed, refuse to add it
+					const alreadyPoposedTopics = associatedTopics.filter(topic => topics.includes(topic.title))
+
+					if (alreadyPoposedTopics.length > 0)
+						return res.status(400).json(
+							Response.error('One or more topics have already been proposed!', {
+								alreadyPoposedTopics
+							})
+						)
+
+					const restructuredData = topics.map(topic => ({
+						projectId: project.id,
+						title: topic,
+						reviewed: false
+					}))
 
 					// associate the topics with the project
 					insertMany(TOPIC, restructuredData)
@@ -103,44 +92,132 @@ function addTopic(req, res) {
 							logger.error(
 								`failed to write topics for student with: ${matricNo} - failed with message - ${err.message}.\n topics - ${topics}`
 							)
-							res.status(500).json(Response.error('Something went wrong!'))
+							res.status(500).json(Response.fatal())
 						})
 				})
-				.catch()
+				.catch(err => {
+					logger.error(
+						`failed to write topics for student with: ${matricNo} - failed with message - ${err.message}.\n topics - ${topics}`
+					)
+					res.status(500).json(Response.fatal())
+				})
 		})
 		.catch(err => {
 			logger.error(`Failed to readStudent with matricNo: ${matricNo} - failed with message - ${err.message}`)
-			res.status(500).json(Response.error('Something went wrong!'))
+			res.status(500).json(Response.fatal())
 		})
 }
 
-function readUnapprovedTopics(req, res) {
-	readMany(TOPIC, { approved: false })
-		.then(topics => {
-			res.status(200).json(Response.success('Done!', topics))
-		})
-		.catch(err => {
-			logger.error(`Failed to read unapproved topics - failed with message - ${err.message}`)
-			res.status(500).json(Response.error('Something went wrong!'))
-		})
-}
-
-async function approveTopic(req, res) {
+// Approve a project topic. which also approves the project
+async function approveProject(req, res) {
 	const [isValid, errors] = validate(validateApproveTopicRequest, req.body)
 	if (!isValid) return res.status(400).json(Response.error('Invalid request!', errors))
 
-	const { id } = { ...req.body }
+	const { topicId, lecturerId } = { ...req.body }
 
-	const topicExists = await exists(TOPIC, { id })
-
-	if (!topicExists) return res.status(400).json(Response.error('Could not find that topic to approve!'))
-
-	update({ id }, { approved: true })
-		.then(() => {
-			res.status(200).json(Response.success('Approved!'))
+	await exists(LECTURER, { id: lecturerId })
+		.then(lecturerExists => {
+			if (!lecturerExists) return res.status(400).json(Response.error('Unknown LecturerId!'))
+			return readOne(TOPIC, { id: topicId })
 		})
-		.catch(() => {
+		.then(topic => {
+			if (!topic) return res.status(400).json(Response.error('Could not find that topic to approve!'))
+
+			update(PROJECT, { id: topic.projectId }, { approvedTopic: topic.id, approvedBy: lecturerId })
+				.then(() => {
+					res.status(200).json(Response.success('Approved!'))
+				})
+				.catch(() => {
+					logger.error(`Failed to approve topic - failed with message - ${err.message}`)
+					res.status(500).json(Response.fatal())
+				})
+		})
+		.catch(err => {
 			logger.error(`Failed to approve topic - failed with message - ${err.message}`)
-			res.status(500).json(Response.error('Something went wrong!'))
+			res.status(500).json(Response.fatal('One of the ID may be invalid'))
+		})
+}
+
+// Reject all project topics
+async function rejectProject(req, res) {
+	const [isValid, errors] = validate(validateApproveTopicRequest, req.body)
+	if (!isValid) return res.status(400).json(Response.error('Invalid request!', errors))
+
+	const { topicId, projectId } = { ...req.body }
+
+	await exists(LECTURER, { id: lecturerId })
+		.then(lecturerExists => {
+			if (!lecturerExists) return res.status(400).json(Response.error('Unknown LecturerId!'))
+			return readOne(PROJECT, { id: projectId })
+		})
+		.then(project => {
+			if (!project) return res.status(400).json(Response.error('Could not find that project to review!'))
+
+			updateMany(TOPIC, { projectId: project.id, reviewed: false }, { reviewed: true })
+				.then(() => {
+					res.status(200).json(Response.success('Project reviewed!'))
+				})
+				.catch(() => {
+					logger.error(`Failed to review project - failed with message - ${err.message}`)
+					res.status(500).json(Response.fatal())
+				})
+		})
+		.catch(err => {
+			logger.error(`Failed to approve topic - failed with message - ${err.message}`)
+			res.status(500).json(Response.fatal('One of the ID may be invalid'))
+		})
+}
+
+// read topics pending approval
+// grouped by projects
+function readPendingProjects(_req, res) {
+	// read projects pending approval
+	readMany(PROJECT, { approvedTopic: null }, { populate: ['owner'] })
+		.then(async projects => {
+			const projectIds = projects.map(p => p.id.toString())
+			// get the associated topics
+			return { projects, topics: await readMany(TOPIC, { projectId: { $in: projectIds } }) }
+		})
+		.then(data => {
+			// group topics by projects
+			const { projects, topics } = JSON.parse(JSON.stringify(data))
+			const projectMap = projects.reduce((acc, proj) => ({ ...acc, [proj.id]: { ...proj, topics: [] } }), {})
+
+			let grouped = topics.reduce((groupedSoFar, topic) => {
+				const associatedProject = topic.projectId
+				if (groupedSoFar[associatedProject])
+					groupedSoFar[associatedProject].topics = [...groupedSoFar[associatedProject].topics, topic]
+				return groupedSoFar
+			}, projectMap)
+
+			res.status(200).json(Response.success('Done!', Object.values(grouped)))
+		})
+		.catch(err => {
+			logger.error(`Failed to read unapproved topics - failed with message - ${err.message}`)
+			res.status(500).json(Response.fatal())
+		})
+}
+
+// read all topics for a particular student
+function readSingleProjectForStudent(req, res) {
+	const [isValid, errors] = validate(validateGetProjectRequest, req.query)
+	if (!isValid) return res.status(400).json(Response.error('Invalid request!', errors))
+
+	const { matricNo } = req.query
+
+	readOne(STUDENT, { matricNo })
+		.then(student => {
+			if (!student) return res.status(400).json(Response.error('No such student with that matric number!'))
+
+			return readOne(PROJECT, { owner: student.id }, { populate: ['approvedBy', 'approvedTopic'] })
+		})
+		.then(project => {
+			readMany(TOPIC, { projectId: project.id }).then(topics => {
+				const responseObject = JSON.parse(JSON.stringify(project))
+				const topicsList = JSON.parse(JSON.stringify(topics))
+
+				responseObject.topics = topicsList
+				res.status(200).json(Response.success('Done.', responseObject))
+			})
 		})
 }
