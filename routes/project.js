@@ -3,7 +3,8 @@ const {
 	validate,
 	validateAddTopic,
 	validateApproveTopicRequest,
-	validateGetProjectRequest
+	validateGetProjectRequest,
+	validateRejectProjectTopicsRequest
 } = require('../lib/validator')
 const { Response } = require('../lib/utils')
 const { readOne, insertMany, exists, save, readMany, updateMany, update } = require('../data')
@@ -19,7 +20,7 @@ router.get('/proposal/pending', readPendingProjects)
 // router.get('/proposal/unapproved', readUnapprovedProjects)
 router.post('/proposal/add', addTopics)
 router.post('/proposal/approve', approveProject)
-router.post('/proposal/reject', rejectProject)
+router.post('/proposal/reject', rejectPendingTopics)
 
 module.exports = router
 
@@ -115,18 +116,26 @@ async function approveProject(req, res) {
 
 	const { topicId, lecturerId } = { ...req.body }
 
-	await exists(LECTURER, { _id: lecturerId })
+	exists(LECTURER, { _id: lecturerId })
 		.then(lecturerExists => {
 			if (!lecturerExists) return res.status(400).json(Response.error('Unknown LecturerId!'))
 			return readOne(TOPIC, { _id: topicId })
 		})
-		.then(topic => {
+		.then(async topic => {
 			if (!topic) return res.status(400).json(Response.error('Could not find that topic to approve!'))
 
 			// refuse to approve a topic if a topic was already approved
 			try {
-				const project = readOne(PROJECT, { _id: topic.projectId })
-			} catch (error) {}
+				const project = await readOne(PROJECT, { _id: topic.projectId })
+				if (project.approvedTopic)
+					return res.status(400).json(Response.error('A topic was previously approved for this project!'))
+			} catch (error) {
+				logger.error(`Failed to read project - failed with message - ${error.message}`)
+				return res.status(500).json(Response.fatal())
+			}
+
+			// mark all the topics as reviewed
+            await updateMany(TOPIC, { projectId: topic.projectId, reviewed: false }, { reviewed: true })
 
 			update(PROJECT, { _id: topic.projectId }, { approvedTopic: topic.id, approvedBy: lecturerId })
 				.then(() => {
@@ -144,25 +153,25 @@ async function approveProject(req, res) {
 }
 
 // Reject all project topics
-async function rejectProject(req, res) {
-	const [isValid, errors] = validate(validateApproveTopicRequest, req.body)
+async function rejectPendingTopics(req, res) {
+	const [isValid, errors] = validate(validateRejectProjectTopicsRequest, req.body)
 	if (!isValid) return res.status(400).json(Response.error('Invalid request!', errors))
 
-	const { topicId, projectId } = { ...req.body }
+	const { projectId } = { ...req.body }
 
-	await exists(LECTURER, { _id: lecturerId })
-		.then(lecturerExists => {
-			if (!lecturerExists) return res.status(400).json(Response.error('Unknown LecturerId!'))
-			return readOne(PROJECT, { _id: projectId })
-		})
+	readOne(PROJECT, { _id: projectId })
 		.then(project => {
 			if (!project) return res.status(400).json(Response.error('Could not find that project to review!'))
+
+			// if a project has been approved
+			if (project.approvedTopic)
+				return res.status(400).json(Response.error('Cannot reject topics on a project that has an approved topic!'))
 
 			updateMany(TOPIC, { projectId: project.id, reviewed: false }, { reviewed: true })
 				.then(() => {
 					res.status(200).json(Response.success('Project reviewed!'))
 				})
-				.catch(() => {
+				.catch(err => {
 					logger.error(`Failed to review project - failed with message - ${err.message}`)
 					res.status(500).json(Response.fatal())
 				})
