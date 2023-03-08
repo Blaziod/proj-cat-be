@@ -28,7 +28,7 @@ function verifyTopic(req, res) {
 		axios('https://api.dandelion.eu/datatxt/sim/v1', {
 			params: {
 				token: process.env.AI_TOKEN,
-				text1: approvedTopic.title,
+				text1: approvedTopic,
 				text2: topic,
 				lang: 'en'
 			}
@@ -40,7 +40,10 @@ function verifyTopic(req, res) {
 			// check if any of the approved topics have a similarity score
 			// of over 90% and report that this topic is invalid
 			const matchesAtLeastOne = results.some(result => {
-				if (result.status === 'rejected') return false
+				if (result.status === 'rejected') {
+                    console.log(result.reason)    
+                    return false
+                }
 				const similarityScore = result.value.data.similarity
 				return similarityScore >= 0.9
 			})

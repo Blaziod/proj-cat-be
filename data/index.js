@@ -35,8 +35,13 @@ var __jobId = null
 function updateGlobalApprovedTopicsCache() {
 	readApprovedTopics()
 		.then(approvedProjects => {
-			global.approvedTopics = approvedProjects.map(approvedProject => approvedProject.approvedTopic.title)
-			// console.log(approvedTopics)
+			const approvedSoFar = approvedProjects.map(approvedProject => approvedProject.approvedTopic.title)
+
+			// remove this part
+			if (JSON.stringify(approvedSoFar) !== JSON.stringify(global.approvedTopics))
+				console.log(approvedSoFar)
+
+			global.approvedTopics = approvedSoFar
 		})
 		.catch(err => {
 			logger.warn('could not read approved topics - ' + err.message)
