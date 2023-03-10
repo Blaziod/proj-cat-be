@@ -1,6 +1,6 @@
-const { STUDENT, TOPIC } = require('../lib/utils/constants')
+const { STUDENT, TOPIC, LECTURER, PROJECT } = require('../lib/utils/constants')
 const { logger } = require('../lib/utils/logger')
-const { StudentModel, TopicModel } = require('./models.js')
+const { StudentModel, TopicModel, LecturerModel, ProjectModel } = require('./models.js')
 
 // ======= DB SETUP
 
@@ -34,14 +34,20 @@ async function setupAndStart(cb) {
 var __jobId = null
 function updateGlobalApprovedTopicsCache() {
 	readApprovedTopics()
-		.then(topics => {
-			global.approvedTopics = topics.map(topic => topic.title)
+		.then(approvedProjects => {
+			const approvedSoFar = approvedProjects.map(approvedProject => approvedProject.approvedTopic.title)
+
+			// remove this part
+			if (JSON.stringify(approvedSoFar) !== JSON.stringify(global.approvedTopics))
+				console.log(approvedSoFar)
+
+			global.approvedTopics = approvedSoFar
 		})
 		.catch(err => {
 			logger.warn('could not read approved topics - ' + err.message)
 		})
 		.finally(() => {
-            // queue the function to run after 3 seconds
+			// queue the function to run after 3 seconds
 			__jobId = setTimeout(updateGlobalApprovedTopicsCache, 3000)
 		})
 }
@@ -56,18 +62,21 @@ function stopUpdateGlobalApprovedTopicsCache() {
 
 // =========== UTILS
 
-const mapNameToModel = name =>
-	({
-		[STUDENT]: StudentModel,
-		[TOPIC]: TopicModel
-	}[name.toLowerCase()])
+const modelMap = {
+	[STUDENT]: StudentModel,
+	[LECTURER]: LecturerModel,
+	[PROJECT]: ProjectModel,
+	[TOPIC]: TopicModel
+}
+
+const mapNameToModel = name => modelMap[name.toLowerCase()]
 
 // DB API
 async function save(modelName, data, cb) {
 	const Model = mapNameToModel(modelName)
 
 	if (cb) new Model(data).save(cb)
-	else await new Model(data).save()
+	else return await new Model(data).save()
 }
 
 async function exists(modelName, data) {
@@ -77,10 +86,17 @@ async function exists(modelName, data) {
 	return res !== null
 }
 
-async function readOne(modelName, query) {
+async function readOne(modelName, filter, config) {
 	const Model = mapNameToModel(modelName)
 
-	return await Model.findOne(query).exec()
+	let finalQuery = Model.findOne(filter)
+
+	//attach populate
+	if (config && config.populate && Array.isArray(config.populate)) {
+		config.populate.forEach(populateField => (finalQuery = finalQuery.populate(populateField)))
+	}
+
+	return await finalQuery.exec()
 }
 
 async function insertMany(modelName, objs) {
@@ -91,7 +107,40 @@ async function insertMany(modelName, objs) {
 }
 
 async function readApprovedTopics() {
-	return await TopicModel.find({ approved: true })
+	return await ProjectModel.find({ approvedTopic: { $ne: null } }).populate('approvedTopic')
+}
+
+async function readMany(modelName, filter, config) {
+	const Model = mapNameToModel(modelName)
+
+	let finalQuery = Model.find(filter)
+
+	//attach populate
+	if (config && config.populate && Array.isArray(config.populate)) {
+		config.populate.forEach(populateField => (finalQuery = finalQuery.populate(populateField)))
+	}
+
+	return finalQuery.exec()
+}
+
+async function update(modelName, filter, update) {
+	const Model = mapNameToModel(modelName)
+	return Model.updateOne(filter, update)
+}
+
+async function updateMany(modelName, filter, update) {
+	const Model = mapNameToModel(modelName)
+	return Model.updateMany(filter, update)
+}
+
+async function cleanDB() {
+	const Models = Object.values(modelMap)
+	Models.forEach(Model => {
+		Model.deleteMany((err, count) => {
+			console.log('err', err)
+			console.log('count', count)
+		})
+	})
 }
 
 module.exports = {
@@ -100,5 +149,9 @@ module.exports = {
 	exists,
 	readOne,
 	insertMany,
-	readApprovedTopics
+	readApprovedTopics,
+	readMany,
+	update,
+	updateMany,
+	cleanDB
 }
