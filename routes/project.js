@@ -10,6 +10,9 @@ const { Response } = require('../lib/utils')
 const { readOne, insertMany, exists, save, readMany, updateMany, update } = require('../data')
 const { STUDENT, TOPIC, PROJECT, PROPOSED, LECTURER, APPROVED } = require('../lib/utils/constants')
 const { logger } = require('../lib/utils/logger')
+const multer = require('multer')
+const upload = multer({ dest: 'uploads/' })
+const axios = require("axios")
 
 const router = Router()
 
@@ -21,6 +24,7 @@ router.get('/proposal/pending', readPendingProjects)
 router.post('/proposal/add', addTopics)
 router.post('/proposal/approve', approveProject)
 router.post('/proposal/reject', rejectPendingTopics)
+router.post('/upload', upload.single('doc'), uploadDoc)
 
 module.exports = router
 
@@ -237,4 +241,14 @@ function readSingleProjectForStudent(req, res) {
 				res.status(200).json(Response.success('Done.', responseObject))
 			})
 		})
+}
+
+// upload a document associated with a single project
+function uploadDoc(req, res) {
+    // A0K2ld8g3RVeE5nhJnUz7z
+    
+    axios.
+    const fileName = req.file.fileName + (req.file.mimetype.split("/")[1])
+    console.log(req.file, fileName)
+    res.json({})
 }
