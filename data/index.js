@@ -1,6 +1,6 @@
-const { STUDENT, TOPIC, LECTURER, PROJECT } = require('../lib/utils/constants')
+const { STUDENT, TOPIC, LECTURER, PROJECT, UPLOAD } = require('../lib/utils/constants')
 const { logger } = require('../lib/utils/logger')
-const { StudentModel, TopicModel, LecturerModel, ProjectModel } = require('./models.js')
+const { StudentModel, TopicModel, LecturerModel, ProjectModel, UploadModel } = require('./models.js')
 
 // ======= DB SETUP
 
@@ -66,7 +66,8 @@ const modelMap = {
 	[STUDENT]: StudentModel,
 	[LECTURER]: LecturerModel,
 	[PROJECT]: ProjectModel,
-	[TOPIC]: TopicModel
+	[TOPIC]: TopicModel,
+	[UPLOAD]: UploadModel
 }
 
 const mapNameToModel = name => modelMap[name.toLowerCase()]
