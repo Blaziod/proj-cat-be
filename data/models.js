@@ -39,7 +39,7 @@ const uploadSchema = new Schema({
 	filename: String,
 	size: Number,
 	url: String,
-	projectId: { type: SchemaTypes.ObjectId, ref: PROJECT }
+	topicId: { type: SchemaTypes.ObjectId, ref: TOPIC }
 })
 
 // set serialization behaviours
