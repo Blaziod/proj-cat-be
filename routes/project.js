@@ -4,11 +4,12 @@ const {
 	validateAddTopic,
 	validateApproveTopicRequest,
 	validateGetProjectRequest,
-	validateRejectProjectTopicsRequest
+	validateRejectProjectTopicsRequest,
+	validateSaveUpload
 } = require('../lib/validator')
 const { Response } = require('../lib/utils')
 const { readOne, insertMany, exists, save, readMany, updateMany, update } = require('../data')
-const { STUDENT, TOPIC, PROJECT, PROPOSED, LECTURER, APPROVED } = require('../lib/utils/constants')
+const { STUDENT, TOPIC, PROJECT, PROPOSED, LECTURER, APPROVED, UPLOAD } = require('../lib/utils/constants')
 const { logger } = require('../lib/utils/logger')
 const multer = require('multer')
 const upload = multer({ dest: 'uploads/' })
@@ -24,7 +25,7 @@ router.get('/proposal/pending', readPendingProjects)
 router.post('/proposal/add', addTopics)
 router.post('/proposal/approve', approveProject)
 router.post('/proposal/reject', rejectPendingTopics)
-router.post('/upload', upload.single('doc'), uploadDoc)
+router.post('/upload', uploadDoc)
 
 module.exports = router
 
@@ -245,10 +246,39 @@ function readSingleProjectForStudent(req, res) {
 
 // upload a document associated with a single project
 function uploadDoc(req, res) {
-    // A0K2ld8g3RVeE5nhJnUz7z
-    
-    axios.
-    const fileName = req.file.fileName + (req.file.mimetype.split("/")[1])
-    console.log(req.file, fileName)
-    res.json({})
+    // A0K2ld8g3RVeE5nhJnUz7z - file stack
+    const [isValid, errors] = validate(validateSaveUpload, req.body)
+	if (!isValid) return res.status(400).json(Response.error('Invalid request!', errors)) 
+
+	const uploadDetails = req.body
+
+	//save upload details to db
+	// read a project for this student
+	readOne(PROJECT, { id: uploadDetails.projectId })
+	.then(async project => {
+		if (project === null) {
+			// project does not exist for thist student, error out
+			return res.status(400).json(Response.error('Could not find project'))
+		}
+
+		if (project.approvedTopic === null || project.approvedTopic === undefined) {
+			// no approved topic, reject
+			return res.status(400).json(Response.error('No topics have been approved yet!'))
+		}
+
+		return project
+	})
+	.then(async project => {
+		save(UPLOAD, uploadDetails)
+		.then(savedDoc => {
+			res.status(200).json(Response.success('Done.', responseObject))
+		})
+		.catch(err => {
+			logger.error(
+				`failed to save upload - failed with message - ${err.message}.\n`
+			)
+			res.status(500).json(Response.fatal())
+		})
+	})
+
 }

@@ -1,5 +1,5 @@
 const { Schema, model, SchemaTypes, pl } = require('mongoose')
-const { STUDENT, TOPIC, LECTURER, PROJECT } = require('../lib/utils/constants')
+const { STUDENT, TOPIC, LECTURER, PROJECT, UPLOAD } = require('../lib/utils/constants')
 
 // define Schemas
 const studentSchema = new Schema({
@@ -31,6 +31,14 @@ const topicSchema = new Schema({
 	title: String,
 	description: String,
 	reviewed: Boolean,
+	projectId: { type: SchemaTypes.ObjectId, ref: PROJECT }
+})
+
+const uploadSchema = new Schema({
+	url: String,
+	filename: String,
+	size: Number,
+	url: String,
 	projectId: { type: SchemaTypes.ObjectId, ref: PROJECT }
 })
 
@@ -75,5 +83,6 @@ module.exports = {
 	StudentModel: createModelWithVirtualId(STUDENT, studentSchema),
 	LecturerModel: createModelWithVirtualId(LECTURER, lecturerSchema),
 	ProjectModel: createModelWithVirtualId(PROJECT, projectSchema),
-	TopicModel: createModelWithVirtualId(TOPIC, topicSchema)
+	TopicModel: createModelWithVirtualId(TOPIC, topicSchema),
+	UploadModel: createModelWithVirtualId(UPLOAD, uploadSchema)
 }
