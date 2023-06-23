@@ -36,7 +36,7 @@ const router = Router();
 router.get("/proposal", readSingleProjectForStudent);
 // router.get('/proposal/all', readUnapprovedProjects)
 router.get("/proposal/pending", readPendingProjects);
-router.get("/upload")
+router.get("/upload", getUploads)
 // router.get('/proposal/approved', readUnapprovedProjects)
 // router.get('/proposal/unapproved', readUnapprovedProjects)
 router.post("/proposal/add", addTopics);
@@ -357,21 +357,21 @@ function uploadDoc(req, res) {
 
   //save upload details to db
   // read a project for this student
-  readOne(PROJECT, { _id: uploadDetails.projectId })
-    .then((project) => {
-      if (project === null) {
-        // project does not exist for thist student, error out
-        res.status(400).json(Response.error("Could not find project"));
+  readOne(TOPIC, { _id: uploadDetails.topicId })
+    .then((topic) => {
+      if (topic === null) {
+        // topic does not exist for thist student, error out
+        res.status(400).json(Response.error("Could not find topic"));
       }
 
       if (
-        project.approvedTopic === null ||
-        project.approvedTopic === undefined
+        topic === null ||
+        !topic.reviewed
       ) {
         // no approved topic, reject
         res
           .status(400)
-          .json(Response.error("No topics have been approved yet!"));
+          .json(Response.error("Topic not you reviewed"));
       } else {
         save(UPLOAD, uploadDetails)
           .then((savedDoc) => {
@@ -394,7 +394,7 @@ function uploadDoc(req, res) {
 
 // get uploaded docs
 function getUploads(req, res) {
-  readMany(UPLOAD, {})
+  readMany(UPLOAD, {}, { populate: ['topicId'] })
     .then((uploads) => {
       res.status(200).json(Response.success("Done.", uploads));
     })
