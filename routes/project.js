@@ -36,6 +36,7 @@ const router = Router();
 router.get("/proposal", readSingleProjectForStudent);
 // router.get('/proposal/all', readUnapprovedProjects)
 router.get("/proposal/pending", readPendingProjects);
+router.get("/upload")
 // router.get('/proposal/approved', readUnapprovedProjects)
 // router.get('/proposal/unapproved', readUnapprovedProjects)
 router.post("/proposal/add", addTopics);
@@ -388,5 +389,19 @@ function uploadDoc(req, res) {
       logger.error(
         `failed to save upload - failed with message - ${err.message}.\n`
       );
+    });
+}
+
+// get uploaded docs
+function getUploads(req, res) {
+  readMany(UPLOAD, {})
+    .then((uploads) => {
+      res.status(200).json(Response.success("Done.", uploads));
+    })
+    .catch((err) => {
+      logger.error(
+        `failed to read uploads - failed with message - ${err.message}.\n`
+      );
+	  res.status(500).json(Response.fatal())
     });
 }
