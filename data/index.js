@@ -80,10 +80,10 @@ async function save(modelName, data, cb) {
 	else return await new Model(data).save()
 }
 
-async function exists(modelName, data) {
+async function exists(modelName, filter) {
 	const Model = mapNameToModel(modelName)
 
-	const res = await Model.exists(data)
+	const res = await Model.exists(filter)
 	return res !== null
 }
 
