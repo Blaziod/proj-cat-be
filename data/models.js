@@ -39,7 +39,8 @@ const uploadSchema = new Schema({
 	filename: String,
 	size: Number,
 	url: String,
-	topicId: { type: SchemaTypes.ObjectId, ref: TOPIC }
+	student: { type: SchemaTypes.ObjectId, ref: STUDENT },
+	topic: { type: SchemaTypes.ObjectId, ref: TOPIC }
 })
 
 // set serialization behaviours
@@ -69,6 +70,10 @@ topicSchema.set('toJSON', {
 projectSchema.set('toJSON', {
 	virtuals: true,
 	transform: defaultJSONTransformer
+})
+uploadSchema.set('toJSON', {
+    virtuals: true,
+    transform: defaultJSONTransformer
 })
 
 // export Models
